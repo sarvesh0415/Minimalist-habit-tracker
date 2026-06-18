@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Tracker</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --border: #e8e8e4;
+    --border-light: #f0f0ec;
+    --text: #1a1a1a;
+    --text-muted: #888;
+    --text-light: #bbb;
+    --accent: #1c9776;
+    --accent-light: #eff4ff;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --red: #dc2626;
+    --yellow: #ca8a04;
+    /* Inverted surface — used for badges, active tabs, etc. */
+    --ink: #1a1a1a;
+    --ink-fg: #ffffff;
+  }
+
+  [data-theme="dark"] {
+    --bg: #111110;
+    --surface: #1c1c1a;
+    --border: #2e2e2b;
+    --border-light: #252523;
+    --text: #e8e8e4;
+    --text-muted: #666;
+    --text-light: #444;
+    --accent: #22c38e;
+    --accent-light: #0d2118;
+    --green: #22c55e;
+    --green-light: #0d1f14;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --ink: #e8e8e4;
+    --ink-fg: #111110;
+  }
+
+  body {
+    font-family: 'Georgia', serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 16px;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+
+  .container { max-width: 720px; margin: 0 auto; }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid var(--text);
+  }
+  .header-left h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  .header-left .date { font-size: 12px; color: var(--text-muted); font-family: monospace; margin-top: 2px; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .completion-badge {
+    font-family: monospace;
+    font-size: 13px;
+    background: var(--ink);
+    color: var(--ink-fg);
+    padding: 4px 10px;
+    border-radius: 3px;
+    transition: background 0.25s, color 0.25s;
+  }
+
+  /* Dark mode toggle */
+  .theme-toggle {
+    width: 36px;
+    height: 36px;
+    border: 1.5px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+    flex-shrink: 0;
+  }
+  .theme-toggle:hover {
+    background: var(--border-light);
+    transform: rotate(20deg);
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 24px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    width: fit-content;
+  }
+  .tab {
+    padding: 7px 18px;
+    font-size: 12px;
+    font-family: monospace;
+    letter-spacing: 0.5px;
+    border: none;
+    background: var(--surface);
+    cursor: pointer;
+    color: var(--text-muted);
+    border-right: 1px solid var(--border);
+    transition: all 0.15s;
+  }
+  .tab:last-child { border-right: none; }
+  .tab.active { background: var(--ink); color: var(--ink-fg); }
+  .tab:hover:not(.active) { background: var(--border-light); }
+
+  /* Panel */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Today Panel */
+  .section-label {
+    font-size: 10px;
+    font-family: monospace;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .tasks-list { display: flex; flex-direction: column; gap: 1px; }
+
+  .task-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: background 0.1s;
+    user-select: none;
+  }
+  .task-item:hover { background: var(--border-light); }
+  .task-item.done { background: var(--green-light); border-color: #bbf7d0; }
+  .task-item.skipped { background: var(--surface); border-color: var(--border); opacity: 0.6; }
+
+  .task-check {
+    width: 18px; height: 18px;
+    border: 1.5px solid var(--border);
+    border-radius: 2px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .task-item.done .task-check {
+    background: var(--green);
+    border-color: var(--green);
+  }
+  .task-item.skipped .task-check {
+    background: transparent;
+    border-color: var(--yellow);
+  }
+  .task-check svg { display: none; }
+  .task-item.done .task-check svg.check-icon { display: block; }
+  .task-item.skipped .task-check svg.skip-icon { display: block; }
+
+  .task-name {
+    flex: 1;
+    font-size: 14px;
+  }
+  .task-item.done .task-name {
+    text-decoration: line-through;
+    color: var(--text-muted);
+  }
+  .task-item.skipped .task-name {
+    color: var(--yellow);
+    font-style: italic;
+  }
+
+  .task-action-btn {
+    width: 20px; height: 20px;
+    border: none; background: none;
+    color: var(--text-light);
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    border-radius: 2px;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0;
+    transition: opacity 0.1s;
+    flex-shrink: 0;
+  }
+  .task-item:hover .task-action-btn { opacity: 1; }
+  .task-action-btn.skip-btn:hover { color: var(--yellow); }
+  .task-action-btn.delete-btn:hover { color: var(--red); }
+  .task-item.skipped .skip-btn { opacity: 1; color: var(--yellow); }
+
+  /* Add task row */
+  .add-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1.5px dashed var(--border);
+    border-radius: 3px;
+  }
+  .add-row input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    font-family: inherit;
+    background: transparent;
+    color: var(--text);
+  }
+  .add-row input::placeholder { color: var(--text-light); }
+  .add-btn {
+    width: 28px; height: 28px;
+    background: var(--ink);
+    color: var(--ink-fg);
+    border: none;
+    border-radius: 3px;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: opacity 0.15s, background 0.25s;
+  }
+  .add-btn:hover { opacity: 0.75; }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 16px;
+    margin-top: 24px;
+    padding: 14px 0;
+    border-top: 1px solid var(--border);
+  }
+  .stat { flex: 1; }
+  .stat-val { font-size: 22px; font-weight: 700; font-family: monospace; }
+  .stat-lbl { font-size: 10px; color: var(--text-muted); font-family: monospace; letter-spacing: 0.5px; margin-top: 2px; }
+
+  /* Progress bar */
+  .progress-wrap { margin-top: 16px; }
+  .progress-bar-bg {
+    height: 5px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 6px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+
+  /* Graph Panel */
+  .graph-section { margin-bottom: 32px; }
+  .graph-section h2 { font-size: 14px; margin-bottom: 16px; font-weight: 600; }
+
+  canvas {
+    width: 100%;
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+
+  /* Rate panel */
+  .rate-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .rate-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 14px;
+    border-radius: 3px;
+  }
+  .rate-card-name { font-size: 13px; margin-bottom: 8px; }
+  .rate-card-pct { font-size: 24px; font-weight: 700; font-family: monospace; }
+  .rate-card-bar { height: 3px; background: var(--border); margin-top: 6px; border-radius: 2px; overflow: hidden; }
+  .rate-card-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+
+  .overall-rate {
+    background: var(--ink);
+    color: var(--ink-fg);
+    padding: 20px;
+    border-radius: 3px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background 0.25s, color 0.25s;
+  }
+  .overall-rate .label { font-size: 11px; font-family: monospace; letter-spacing: 1px; opacity: 0.6; }
+  .overall-rate .value { font-size: 42px; font-weight: 700; font-family: monospace; }
+
+  /* Heatmap */
+  .heatmap-wrap { overflow-x: auto; padding-bottom: 8px; }
+  .heatmap-months {
+    display: flex;
+    margin-bottom: 4px;
+    margin-left: 28px;
+    font-size: 9px;
+    font-family: monospace;
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+  }
+  .heatmap-body { display: flex; gap: 0; align-items: flex-start; }
+  .heatmap-day-labels {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-right: 4px;
+    margin-top: 1px;
+  }
+  .heatmap-day-labels span {
+    font-size: 9px;
+    font-family: monospace;
+    color: var(--text-muted);
+    height: 12px;
+    line-height: 12px;
+    width: 22px;
+    text-align: right;
+  }
+  .heatmap-grid {
+    display: flex;
+    gap: 2px;
+    flex-wrap: nowrap;
+  }
+  .heatmap-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .heatmap-cell {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    cursor: default;
+    transition: opacity 0.1s;
+    position: relative;
+  }
+  .heatmap-cell:hover { opacity: 0.75; }
+  .heatmap-legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    font-size: 10px;
+    font-family: monospace;
+    color: var(--text-muted);
+  }
+  .heatmap-legend-cell {
+    width: 12px; height: 12px;
+    border-radius: 2px;
+  }
+  .hm-0 { background: var(--border); }
+  .hm-1 { background: #bbf7d0; }
+  .hm-2 { background: #4ade80; }
+  .hm-3 { background: #16a34a; }
+  .hm-4 { background: #14532d; }
+  .hm-skip { background: #fef08a; }
+  .hm-future { background: transparent; border: 1px solid var(--border); }
+  [data-theme="dark"] .hm-1 { background: #166534; }
+  [data-theme="dark"] .hm-2 { background: #15803d; }
+  [data-theme="dark"] .hm-3 { background: #22c55e; }
+  [data-theme="dark"] .hm-4 { background: #86efac; }
+  [data-theme="dark"] .hm-skip { background: #854d0e; }
+
+  .empty-state {
+    padding: 32px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="header-left">
+      <h1>Daily Tracker</h1>
+      <div class="date" id="headerDate"></div>
+    </div>
+    <div class="header-right">
+      <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">🌙</button>
+      <div class="completion-badge" id="completionBadge">0 / 0</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('today')">TODAY</button>
+    <button class="tab" onclick="switchTab('weekly')">WEEKLY</button>
+    <button class="tab" onclick="switchTab('monthly')">MONTHLY</button>
+    <button class="tab" onclick="switchTab('rates')">RATES</button>
+    <button class="tab" onclick="switchTab('heatmap')">HEATMAP</button>
+  </div>
+
+  <!-- TODAY -->
+  <div class="panel active" id="panel-today">
+    <div class="section-label">Tasks</div>
+    <div class="tasks-list" id="tasksList"></div>
+
+    <div class="add-row">
+      <input type="text" id="newTaskInput" placeholder="Add a task..." maxlength="60" />
+      <button class="add-btn" onclick="addTask()">+</button>
+    </div>
+
+    <div class="stats-bar">
+      <div class="stat">
+        <div class="stat-val" id="statDone">0</div>
+        <div class="stat-lbl">DONE</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="statLeft">0</div>
+        <div class="stat-lbl">LEFT</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="statSkipped">0</div>
+        <div class="stat-lbl">SKIPPED</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="statStreak">0</div>
+        <div class="stat-lbl">STREAK</div>
+      </div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="section-label">TODAY'S PROGRESS</div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WEEKLY -->
+  <div class="panel" id="panel-weekly">
+    <div class="graph-section">
+      <div class="section-label">Last 7 Days — Completion %</div>
+      <canvas id="weeklyCanvas" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- MONTHLY -->
+  <div class="panel" id="panel-monthly">
+    <div class="graph-section">
+      <div class="section-label">Last 30 Days — Tasks Completed</div>
+      <canvas id="monthlyCanvas" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- RATES -->
+  <div class="panel" id="panel-rates">
+    <div class="overall-rate">
+      <div>
+        <div class="label">OVERALL COMPLETION RATE</div>
+        <div style="font-size:11px;opacity:0.4;margin-top:2px;font-family:monospace;">ALL TIME</div>
+      </div>
+      <div class="value" id="overallRate">—</div>
+    </div>
+    <div class="section-label">Per Task — All Time</div>
+    <div class="rate-grid" id="rateGrid"></div>
+  </div>
+
+  <!-- HEATMAP -->
+  <div class="panel" id="panel-heatmap">
+    <div class="section-label">Activity Heatmap — Last 17 Weeks</div>
+    <div class="heatmap-wrap">
+      <div class="heatmap-months" id="heatmapMonths"></div>
+      <div class="heatmap-body">
+        <div class="heatmap-day-labels">
+          <span></span>
+          <span>MON</span>
+          <span></span>
+          <span>WED</span>
+          <span></span>
+          <span>FRI</span>
+          <span></span>
+        </div>
+        <div class="heatmap-grid" id="heatmapGrid"></div>
+      </div>
+      <div class="heatmap-legend">
+        <span>Less</span>
+        <div class="heatmap-legend-cell hm-0"></div>
+        <div class="heatmap-legend-cell hm-1"></div>
+        <div class="heatmap-legend-cell hm-2"></div>
+        <div class="heatmap-legend-cell hm-3"></div>
+        <div class="heatmap-legend-cell hm-4"></div>
+        <span>More</span>
+        &nbsp;&nbsp;
+        <div class="heatmap-legend-cell hm-skip"></div>
+        <span>Skipped day</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── Storage helpers ───────────────────────────────────────────────────────
+const key = k => localStorage.getItem(k);
+const save = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+const load = k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } };
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function getData() {
+  return load('tracker_data') || {
+    tasks: ['Gym','ML Course','DSA','APT','DBMS','Codebase Understanding','Diet'],
+    history: {}   // { "YYYY-MM-DD": { "TaskName": true/false, ... } }
+  };
+}
+
+function saveData(d) { save('tracker_data', d); }
+
+// ─── Init ──────────────────────────────────────────────────────────────────
+const today = todayStr();
+let data = getData();
+
+// Ensure today's record exists
+if (!data.history[today]) {
+  data.history[today] = {};
+  data.tasks.forEach(t => { data.history[today][t] = false; });
+  saveData(data);
+}
+
+// Sync tasks list with today's record (handle new tasks added later)
+data.tasks.forEach(t => {
+  if (!(t in data.history[today])) data.history[today][t] = false;
+});
+saveData(data);
+
+// ─── Header date ──────────────────────────────────────────────────────────
+document.getElementById('headerDate').textContent = new Date().toLocaleDateString('en-GB', {
+  weekday:'long', day:'numeric', month:'long', year:'numeric'
+});
+
+// ─── Render tasks ─────────────────────────────────────────────────────────
+function renderTasks() {
+  const list = document.getElementById('tasksList');
+  list.innerHTML = '';
+  const rec = data.history[today] || {};
+
+  data.tasks.forEach(name => {
+    const state = rec[name]; // true | false | 'skip'
+    const isDone = state === true;
+    const isSkip = state === 'skip';
+    const item = document.createElement('div');
+    item.className = 'task-item' + (isDone ? ' done' : isSkip ? ' skipped' : '');
+    item.innerHTML = `
+      <div class="task-check">
+        <svg class="check-icon" width="11" height="9" viewBox="0 0 11 9" fill="none">
+          <path d="M1 4L4 7.5L10 1" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <svg class="skip-icon" width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <line x1="2" y1="5" x2="8" y2="5" stroke="#ca8a04" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="task-name">${name}</span>
+      <button class="task-action-btn skip-btn" title="Skip day" onclick="skipTask(event,'${name.replace(/'/g,"\\'")}')">⏭︎</button>
+      <button class="task-action-btn delete-btn" title="Delete task" onclick="deleteTask(event,'${name.replace(/'/g,"\\'")}')">×</button>
+    `;
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.task-action-btn')) return;
+      toggleTask(name);
+    });
+    list.appendChild(item);
+  });
+
+  updateStats();
+}
+
+function toggleTask(name) {
+  const cur = data.history[today][name];
+  // Cycle: false -> true -> false (skip is set only via skip button)
+  if (cur === 'skip') { data.history[today][name] = false; }
+  else { data.history[today][name] = !cur; }
+  saveData(data);
+  renderTasks();
+}
+
+function skipTask(e, name) {
+  e.stopPropagation();
+  const cur = data.history[today][name];
+  data.history[today][name] = cur === 'skip' ? false : 'skip';
+  saveData(data);
+  renderTasks();
+}
+
+function deleteTask(e, name) {
+  e.stopPropagation();
+  if (!confirm(`Remove "${name}" from all tracking?`)) return;
+  data.tasks = data.tasks.filter(t => t !== name);
+  Object.keys(data.history).forEach(d => { delete data.history[d][name]; });
+  saveData(data);
+  renderTasks();
+}
+
+
+function addTask() {
+  const input = document.getElementById('newTaskInput');
+  const name = input.value.trim();
+  if (!name) return;
+  if (data.tasks.includes(name)) { input.value = ''; return; }
+  data.tasks.push(name);
+  // Add to all history days as false, today as false
+  Object.keys(data.history).forEach(d => { data.history[d][name] = false; });
+  saveData(data);
+  input.value = '';
+  renderTasks();
+}
+
+document.getElementById('newTaskInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addTask();
+});
+
+// ─── Stats ─────────────────────────────────────────────────────────────────
+function updateStats() {
+  const rec = data.history[today] || {};
+  const total = data.tasks.length;
+  const done = data.tasks.filter(t => rec[t] === true).length;
+  const skipped = data.tasks.filter(t => rec[t] === 'skip').length;
+  const left = total - done - skipped;
+  const countable = total - skipped; // non-skipped tasks
+  const pct = countable ? Math.round(done / countable * 100) : 0;
+
+  document.getElementById('statDone').textContent = done;
+  document.getElementById('statLeft').textContent = Math.max(0, left);
+  document.getElementById('statSkipped').textContent = skipped;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('completionBadge').textContent = `${done} / ${countable}`;
+
+  // Streak: consecutive days where all non-skipped tasks are done
+  const sortedDays = Object.keys(data.history).sort().reverse();
+  let streak = 0;
+  for (const d of sortedDays) {
+    if (d === today) continue;
+    const r = data.history[d];
+    const tasks = Object.keys(r);
+    if (!tasks.length) break;
+    const nonSkipped = tasks.filter(t => r[t] !== 'skip');
+    if (!nonSkipped.length) { streak++; continue; } // all skipped = counts as OK
+    const allDone = nonSkipped.every(t => r[t] === true);
+    if (allDone) streak++;
+    else break;
+  }
+  document.getElementById('statStreak').textContent = streak;
+}
+
+// ─── Charts ───────────────────────────────────────────────────────────────
+function drawWeekly() {
+  const canvas = document.getElementById('weeklyCanvas');
+  canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+  canvas.height = 200 * window.devicePixelRatio;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const W = canvas.offsetWidth, H = 200;
+
+  // Last 7 days
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const label = d.toLocaleDateString('en-GB', {weekday:'short'}).toUpperCase();
+    const rec = data.history[s] || {};
+    const tasks = Object.keys(rec);
+    const countable = tasks.filter(t => rec[t] !== 'skip');
+    const pct = countable.length ? Math.round(countable.filter(t => rec[t] === true).length / countable.length * 100) : 0;
+    days.push({ label, pct, date: s });
+  }
+
+  drawBarChart(ctx, W, H, days, '%', true);
+}
+
+function drawMonthly() {
+  const canvas = document.getElementById('monthlyCanvas');
+  canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+  canvas.height = 200 * window.devicePixelRatio;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const W = canvas.offsetWidth, H = 200;
+
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const s = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const label = String(d.getDate());
+    const rec = data.history[s] || {};
+    const pct = Object.values(rec).filter(v => v === true).length;
+    days.push({ label: i % 5 === 0 ? label : '', pct, date: s });
+  }
+
+  drawBarChart(ctx, W, H, days, '', false);
+}
+
+function drawBarChart(ctx, W, H, days, unit, showPct) {
+  const pad = { top: 16, bottom: 32, left: 36, right: 12 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+  const maxVal = showPct ? 100 : Math.max(...days.map(d=>d.pct), 1);
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = '#e8e8e4';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + chartH - (i/4) * chartH;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(pad.left + chartW, y);
+    ctx.stroke();
+
+    ctx.fillStyle = '#aaa';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(maxVal * i/4) + unit, pad.left - 5, y + 3);
+  }
+
+  // Bars
+  const barW = Math.max(4, chartW / days.length * 0.55);
+  const gap = chartW / days.length;
+
+  days.forEach((d, i) => {
+    const barH = (d.pct / maxVal) * chartH;
+    const x = pad.left + i * gap + gap/2 - barW/2;
+    const y = pad.top + chartH - barH;
+
+    const isToday = d.date === today;
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    ctx.fillStyle = isToday ? (isDark ? '#e8e8e4' : '#1a1a1a') : (d.pct === 0 ? (isDark ? '#2e2e2b' : '#e8e8e4') : '#2563eb');
+    ctx.fillRect(x, y, barW, barH);
+
+    if (d.label) {
+      ctx.fillStyle = '#888';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(d.label, x + barW/2, H - pad.bottom + 14);
+    }
+  });
+}
+
+// ─── Rates ────────────────────────────────────────────────────────────────
+function renderRates() {
+  const rateGrid = document.getElementById('rateGrid');
+  rateGrid.innerHTML = '';
+
+  const allDays = Object.keys(data.history);
+  if (!allDays.length) {
+    rateGrid.innerHTML = '<div class="empty-state">No history yet. Complete some tasks first.</div>';
+    return;
+  }
+
+  // Per-task (exclude skipped days from denominator)
+  const taskRates = {};
+  data.tasks.forEach(t => {
+    let total = 0, done = 0;
+    allDays.forEach(d => {
+      if (t in data.history[d] && data.history[d][t] !== 'skip') {
+        total++;
+        if (data.history[d][t] === true) done++;
+      }
+    });
+    taskRates[t] = total ? Math.round(done/total*100) : 0;
+  });
+
+  // Overall (exclude skipped)
+  let totalSlots = 0, doneSlots = 0;
+  allDays.forEach(d => {
+    const rec = data.history[d];
+    Object.keys(rec).forEach(t => {
+      if (rec[t] !== 'skip') { totalSlots++; if (rec[t] === true) doneSlots++; }
+    });
+  });
+  const overall = totalSlots ? Math.round(doneSlots/totalSlots*100) : 0;
+  document.getElementById('overallRate').textContent = overall + '%';
+
+  data.tasks.forEach(t => {
+    const pct = taskRates[t];
+    const card = document.createElement('div');
+    card.className = 'rate-card';
+    card.innerHTML = `
+      <div class="rate-card-name">${t}</div>
+      <div class="rate-card-pct">${pct}%</div>
+      <div class="rate-card-bar"><div class="rate-card-bar-fill" style="width:${pct}%"></div></div>
+    `;
+    rateGrid.appendChild(card);
+  });
+}
+
+// ─── Heatmap ──────────────────────────────────────────────────────────────
+function renderHeatmap() {
+  const WEEKS = 17;
+  const DAYS = WEEKS * 7;
+  const grid = document.getElementById('heatmapGrid');
+  const monthsEl = document.getElementById('heatmapMonths');
+  grid.innerHTML = '';
+  monthsEl.innerHTML = '';
+
+  // Build date list (oldest first), aligned to start of a Sunday
+  const endDate = new Date();
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - (DAYS - 1));
+  // Roll back to nearest Sunday
+  const dayOfWeek = startDate.getDay(); // 0=Sun
+  startDate.setDate(startDate.getDate() - dayOfWeek);
+
+  // Build columns (weeks)
+  const monthTrack = [];
+  for (let w = 0; w < WEEKS; w++) {
+    const col = document.createElement('div');
+    col.className = 'heatmap-col';
+    let firstMonthInCol = null;
+
+    for (let d = 0; d < 7; d++) {
+      const date = new Date(startDate);
+      date.setDate(startDate.getDate() + w * 7 + d);
+      const s = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+      const isFuture = date > endDate;
+
+      const cell = document.createElement('div');
+      cell.className = 'heatmap-cell';
+
+      if (isFuture) {
+        cell.classList.add('hm-future');
+      } else {
+        const rec = data.history[s] || {};
+        const tasks = Object.keys(rec);
+        const allSkip = tasks.length && tasks.every(t => rec[t] === 'skip');
+        const countable = tasks.filter(t => rec[t] !== 'skip');
+        const doneCount = countable.filter(t => rec[t] === true).length;
+        const pct = countable.length ? doneCount / countable.length : 0;
+
+        if (allSkip) {
+          cell.classList.add('hm-skip');
+          cell.title = `${s} — Skipped`;
+        } else if (!tasks.length) {
+          cell.classList.add('hm-0');
+          cell.title = `${s} — No data`;
+        } else if (pct === 0)  { cell.classList.add('hm-0'); cell.title = `${s} — 0%`; }
+        else if (pct <= 0.25) { cell.classList.add('hm-1'); cell.title = `${s} — ${Math.round(pct*100)}%`; }
+        else if (pct <= 0.5)  { cell.classList.add('hm-2'); cell.title = `${s} — ${Math.round(pct*100)}%`; }
+        else if (pct <= 0.75) { cell.classList.add('hm-3'); cell.title = `${s} — ${Math.round(pct*100)}%`; }
+        else                  { cell.classList.add('hm-4'); cell.title = `${s} — ${Math.round(pct*100)}%`; }
+
+        if (s === today) {
+          cell.style.outline = '2px solid var(--text)';
+          cell.style.outlineOffset = '1px';
+        }
+      }
+
+      if (d === 0) firstMonthInCol = date.toLocaleDateString('en-GB', { month: 'short' }).toUpperCase();
+      col.appendChild(cell);
+    }
+    monthTrack.push(firstMonthInCol);
+    grid.appendChild(col);
+  }
+
+  // Month labels — only show when month changes
+  let lastMonth = null;
+  monthTrack.forEach((m, i) => {
+    const span = document.createElement('span');
+    const cellW = 14; // 12px cell + 2px gap
+    if (m !== lastMonth) {
+      span.textContent = m;
+      lastMonth = m;
+    }
+    span.style.width = cellW + 'px';
+    span.style.flexShrink = '0';
+    monthsEl.appendChild(span);
+  });
+}
+
+// ─── Tab switching ─────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['today','weekly','monthly','rates','heatmap'][i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+
+  if (name === 'weekly') { setTimeout(drawWeekly, 10); }
+  if (name === 'monthly') { setTimeout(drawMonthly, 10); }
+  if (name === 'rates') renderRates();
+  if (name === 'heatmap') renderHeatmap();
+}
+
+// ─── Dark mode ────────────────────────────────────────────────────────────
+(function initTheme() {
+  const saved = localStorage.getItem('tracker_theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const isDark = saved ? saved === 'dark' : prefersDark;
+  if (isDark) document.documentElement.setAttribute('data-theme', 'dark');
+  document.getElementById('themeToggle').textContent = isDark ? '☀️' : '🌙';
+})();
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  if (isDark) {
+    document.documentElement.removeAttribute('data-theme');
+    localStorage.setItem('tracker_theme', 'light');
+    document.getElementById('themeToggle').textContent = '🌙';
+  } else {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    localStorage.setItem('tracker_theme', 'dark');
+    document.getElementById('themeToggle').textContent = '☀️';
+  }
+});
+
+// ─── Boot ──────────────────────────────────────────────────────────────────
+renderTasks();
+</script>
+</body>
+</html>
